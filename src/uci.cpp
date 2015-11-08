@@ -135,51 +135,16 @@ namespace {
     Threads.start_thinking(pos, limits, SetupStates);
   }
 
-
-  /// format_square() converts a Square to a string (g1, a7, etc.)
-
-  std::string format_square(Square s) {
-
-	  char ch[] = { char('a' + file_of(s)),
-		  char('1' + rank_of(s)), 0 }; // Zero-terminating
-	  return ch;
-  }
-
-  string format_move(Move m, bool chess960) {
-
-	  Square from = from_sq(m);
-	  Square to = to_sq(m);
-
-	  if (m == MOVE_NONE)
-		  return "(none)";
-
-	  if (m == MOVE_NULL)
-		  return "0000";
-
-	  if (type_of(m) == CASTLING && !chess960)
-		  to = make_square(to > from ? FILE_G : FILE_C, rank_of(from));
-
-	  string move = format_square(from) + format_square(to);
-
-	  if (type_of(m) == PROMOTION)
-		  move += " pnbrqk"[promotion_type(m)];
-
-	  return move;
-  }
-
-
+ 
   static void browse(Position& pos)
   {
 	  StateInfo st[128];
-	  uint64_t cnt = 0;
-	  CheckInfo ci(pos);
 	  const TTEntry* tte;
 	  char inp[256];
-	  Move moves[256];
-	  Move moves2[256];
+	  Move moves[256], moves2[256];
 	  string MoveString[256];
 	  static const string PieceToChar2("  NBRQK   nbrqk");
-
+	  static const string bound[] = {"  B_NO ","  B_NO ","  B_LO "," :B_EX "};
 	  int j = 0;
 
 	  for (;;)
@@ -188,47 +153,36 @@ namespace {
 		  printf("\nMoves:");
 		  for (int l = 0; l<j; l++)
 			  printf("%s ", MoveString[l].c_str());
-		  printf("\n");
-		  printf("Nr.    Move   Bound  Depth  Value    Eval   ttmove\n");
+		  printf("\nNr.    Move   Bound  Depth  Value    Eval   ttmove\n");
 
 		  for (const auto& m : MoveList<LEGAL>(pos))
 		  {
-			  string s = format_move(m, pos.is_chess960());
-			  s = PieceToChar2[pos.piece_on(from_sq(m))] + s;
-
-			  moves[k] = m;
-			  pos.do_move(m, st[j], pos.gives_check(m, ci));
+			  printf("%2d:  %6s  ", k, (PieceToChar2[pos.piece_on(from_sq(m))] + UCI::move(m, pos.is_chess960())).c_str());
+			  moves[k++] = m;
+			  pos.do_move(m, st[j], pos.gives_check(m, CheckInfo(pos)));
 
 			  bool found;
 			  tte = TT.probe(pos.key(), found);
-			  printf("%2d:  %6s  ", k++, s.c_str());
-			  // if (tte == NULL)
-			  if (found == false)
-				  printf("--\n");
-			  else
+				 
+			  if (found)
 			  {
-				  Bound b = tte->bound();
-				  if (b == BOUND_EXACT) printf(" :B_EX ");
-				  if (b == BOUND_LOWER) printf("  B_LO ");
-				  if (b == BOUND_UPPER) printf("  B_UP ");
-				  if (b == BOUND_NONE) printf("  B_NO ");
+				  printf("%s", bound[tte->bound()].c_str());
 
-				  string s2 = format_move(tte->move(), pos.is_chess960());
+				  string s2 = UCI::move(tte->move(), pos.is_chess960());
 				  if ((tte->move() != MOVE_NONE) && (tte->move() != MOVE_NULL))
 					  s2 = PieceToChar2[pos.piece_on(from_sq(tte->move()))] + s2;
 				  else
 					  s2 = " " + s2;
 
-				  char val[8], eval[8];
-				  strcpy(val, "   ----");
-				  strcpy(eval, "   ----");
-				  if (tte->value() != VALUE_NONE)
-					  sprintf(val, "%7d", tte->value());
-				  if (tte->eval() != VALUE_NONE)
-					  sprintf(eval, "%7d", tte->eval());
+				  char val[8] = "   ----";
+				  char eval[8] = "   ----";
+				  if (tte->value() != VALUE_NONE) sprintf(val, "%7d", tte->value());
+				  if (tte->eval()  != VALUE_NONE) sprintf(eval, "%7d", tte->eval());
 
 				  printf("%4d %s  %s   %s\n", tte->depth(), val, eval, s2.c_str());
 			  }
+			  else
+				  printf("--\n");
 
 			  pos.undo_move(m);
 		  }
@@ -239,28 +193,22 @@ namespace {
 			  return;
 		  int movenum = atoi(inp);
 
-		  if ((movenum >0) && (movenum < k))
+		  if ((movenum > 0) && (movenum < k))
 		  {
-			  CheckInfo ci2(pos);
 			  moves2[j] = moves[movenum];
 
-			  string s2 = format_move(moves2[j], pos.is_chess960());
+			  string s2 = UCI::move(moves2[j], pos.is_chess960());
 			  if ((moves2[j] != MOVE_NONE) && (moves2[j] != MOVE_NULL))
-				  s2 = PieceToChar2[pos.piece_on(from_sq(moves2[j]))] + s2;
+				  MoveString[j] = PieceToChar2[pos.piece_on(from_sq(moves2[j]))] + s2;
 			  else
-				  s2 = " " + s2;
-			  MoveString[j] = s2;
+				  MoveString[j] = " " + s2;
 
-			  pos.do_move(moves[movenum], st[j], pos.gives_check(moves[movenum], ci2));
-			  j++;
+			  pos.do_move(moves[movenum], st[j++], pos.gives_check(moves[movenum], CheckInfo(pos)));
 		  }
 		  else
 		  {
 			  if (j > 0)
-			  {
-				  pos.undo_move(moves2[j - 1]);
-				  j--;
-			  }
+				  pos.undo_move(moves2[j-- - 1]);
 		  }
 	  }
   }
