@@ -821,7 +821,7 @@ moves_loop: // When in check search starts from here
     {
       assert(is_ok(move));
 
-      if (move == excludedMove)
+      if ((move == excludedMove) || !pos.pseudo_legal_king(move))
           continue;
 
       // At root obey the "searchmoves" option and skip moves not listed in Root

@@ -612,6 +612,15 @@ bool Position::pseudo_legal(const Move m) const {
 }
 
 
+bool Position::pseudo_legal_king(const Move m) const {
+
+    if ((type_of(moved_piece(m)) == KING) && checkers())
+        return  !(attackers_to(to_sq(m), pieces() ^ from_sq(m)) & pieces(~sideToMove));
+  
+    return true;
+}
+
+
 /// Position::gives_check() tests whether a pseudo-legal move gives a check
 
 bool Position::gives_check(Move m) const {
